@@ -79,6 +79,7 @@
   async function load() {
     guns = await DB.all();
     render();
+    renderBackupStatus();
   }
 
   // ---------- add / edit ----------
@@ -178,6 +179,7 @@
     };
     if (ownerMode === 'mine') { gun.ownerName = ''; gun.ownerPhone = ''; gun.storedSince = ''; }
     await DB.put(gun);
+    markChanged('put', gun.id);
     $('#dlg-edit').close();
     await load();
     toast(editing ? 'Saved' : 'Added to catalog');
@@ -186,6 +188,7 @@
   $('#btn-delete').onclick = async () => {
     if (!editing || !confirm(`Delete ${editing.make || ''} ${editing.model || ''} from the catalog?`)) return;
     await DB.remove(editing.id);
+    markChanged('delete', editing.id);
     $('#dlg-edit').close();
     await load();
     toast('Deleted');
@@ -231,6 +234,7 @@
   $('#btn-settings').onclick = () => {
     $('#set-key').value = settings.key || '';
     $('#set-model').value = settings.model || '';
+    renderBackupStatus();
     $('#dlg-settings').showModal();
   };
   $('#btn-save-settings').onclick = () => {
@@ -248,8 +252,62 @@
   }
   const stamp = () => new Date().toISOString().slice(0, 10);
 
-  $('#btn-export').onclick = () => {
-    download(`gun-collection-backup-${stamp()}.json`, JSON.stringify({ app: 'bigbigs-gun-collection', version: 1, guns }), 'application/json');
+  // ---------- encrypted backup ----------
+  const BK = 'bbgc-backup';
+  const bkState = () => { try { return JSON.parse(localStorage.getItem(BK)) || {}; } catch { return {}; } };
+  const bkSave = st => { try { localStorage.setItem(BK, JSON.stringify(st)); } catch {} };
+  const markChanged = (op, id) => {
+    const st = bkState(); st.changed = Date.now(); bkSave(st);
+    if (op && id) Sync.track(op, id);
+  };
+
+  function renderBackupStatus() {
+    const sync = Sync.status();
+    renderSync(sync);
+    if (sync.enabled) {
+      const hasErr = sync.error && !/^Offline/.test(sync.error);
+      $('#backup-banner').classList.toggle('hidden', !hasErr);
+      $('#backup-banner-text').textContent = `Auto-backup problem: ${sync.error}`;
+      return;
+    }
+    const st = bkState();
+    const last = st.last ? new Date(st.last).toLocaleString() : null;
+    $('#bk-status').textContent = last ? `Last backup: ${last}` : 'No backup yet.';
+    const stale = guns.length && (!st.last || (st.changed || 0) > st.last || Date.now() - st.last > 30 * 864e5);
+    $('#backup-banner').classList.toggle('hidden', !stale);
+    $('#backup-banner-text').textContent = !st.last
+      ? `Your ${guns.length === 1 ? 'gun is' : `${guns.length} guns are`} only on this phone. Turn on auto-backup to keep them safe.`
+      : (st.changed || 0) > st.last ? "You have changes that aren't backed up." : "It's been over a month since your last backup.";
+  }
+
+  $('#btn-backup-now').onclick = () => $('#btn-settings').click();
+
+  $('#btn-export').onclick = async () => {
+    const p1 = $('#bk-pass').value, p2 = $('#bk-pass2').value;
+    if (p1.length < 8) { toast('Use a password of at least 8 characters'); return; }
+    if (p1 !== p2) { toast("Passwords don't match"); return; }
+    if (!guns.length) { toast('Nothing to back up yet'); return; }
+    const btn = $('#btn-export'); btn.disabled = true; btn.textContent = 'Encrypting…';
+    try {
+      const text = await Vault.lock({ app: 'bigbigs-gun-collection', version: 1, guns }, p1);
+      const name = `gun-collection-${stamp()}.bbgc`;
+      const file = new File([text], name, { type: 'application/octet-stream' });
+      // On phones, open the share sheet so it can go straight to Drive / iCloud / Files / email.
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: "Big Big's Gun Collection backup" }); }
+        catch (err) { if (err.name === 'AbortError') return; download(name, text, 'application/octet-stream'); }
+      } else {
+        download(name, text, 'application/octet-stream');
+      }
+      const st = bkState(); st.last = Date.now(); bkSave(st);
+      $('#bk-pass').value = ''; $('#bk-pass2').value = '';
+      renderBackupStatus();
+      toast('Encrypted backup saved');
+    } catch (err) {
+      toast(err.message || 'Backup failed');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save encrypted backup';
+    }
   };
   $('#btn-csv').onclick = () => {
     const cols = ['make', 'model', 'serial', 'caliber', 'type', 'owner', 'ownerName', 'ownerPhone', 'storedSince', 'acquired', 'price', 'source', 'notes'];
@@ -261,14 +319,77 @@
     const f = e.target.files[0]; e.target.value = '';
     if (!f) return;
     try {
-      const data = JSON.parse(await f.text());
+      let text = await f.text(), data;
+      if (Vault.isLocked(text)) {
+        const pass = prompt('Enter the password for this backup');
+        if (!pass) return;
+        data = await Vault.unlock(text, pass);
+      } else {
+        data = JSON.parse(text);
+      }
       const list = Array.isArray(data) ? data : data.guns;
-      if (!Array.isArray(list)) throw new Error();
-      for (const g of list) if (g && g.id) await DB.put(g);
+      if (!Array.isArray(list)) throw new Error("That doesn't look like a backup file");
+      for (const g of list) if (g && g.id) { await DB.put(g); Sync.track('put', g.id); }
+      const st = bkState(); st.last = Date.now(); st.changed = 0; bkSave(st);
       await load();
-      toast(`Imported ${list.length} firearm${list.length === 1 ? '' : 's'}`);
-    } catch { toast("That doesn't look like a backup file"); }
+      toast(`Restored ${list.length} firearm${list.length === 1 ? '' : 's'}`);
+    } catch (err) { toast(err.message && !/JSON/.test(err.message) ? err.message : "That doesn't look like a backup file"); }
   };
+
+
+  // ---------- automatic cloud backup ----------
+  function ago(t) {
+    const s = Math.round((Date.now() - t) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return `${Math.round(s / 60)} min ago`;
+    if (s < 86400) return `${Math.round(s / 3600)} hr ago`;
+    return new Date(t).toLocaleDateString();
+  }
+  function renderSync(st = Sync.status()) {
+    $('#sync-on').classList.toggle('hidden', !st.enabled);
+    $('#sync-off').classList.toggle('hidden', st.enabled);
+    if (!st.enabled) return;
+    const dot = $('#sync-dot');
+    dot.className = 'dot' + (st.busy ? ' busy' : st.error ? ' err' : '');
+    $('#sync-title').textContent = st.busy ? 'Backing up…' : st.error ? 'Backup paused' : 'Auto-backup is on';
+    $('#sync-detail').textContent = st.error
+      ? `${st.error}${st.pending ? ` · ${st.pending} change${st.pending === 1 ? '' : 's'} waiting` : ''}`
+      : `${st.pending ? `${st.pending} change${st.pending === 1 ? '' : 's'} uploading · ` : 'Everything saved · '}last backup ${ago(st.last)} · ${st.repo}`;
+  }
+
+  $('#btn-sync-on').onclick = async () => {
+    const repo = $('#sync-repo').value || $('#sync-repo').placeholder;
+    const token = $('#sync-token').value.trim();
+    const p1 = $('#sync-pass').value, p2 = $('#sync-pass2').value;
+    const msg = $('#sync-msg');
+    msg.className = 'note err';
+    if (!token) { msg.textContent = 'Paste your GitHub access token.'; return; }
+    if (p1.length < 8) { msg.textContent = 'Use a backup password of at least 8 characters.'; return; }
+    if (p2 && p1 !== p2) { msg.textContent = "Passwords don't match."; return; }
+    const btn = $('#btn-sync-on'); btn.disabled = true; btn.textContent = 'Connecting…';
+    msg.className = 'note'; msg.textContent = 'Checking the repo…';
+    try {
+      const r = await Sync.enable({ token, repo, password: p1, saveGun: g => DB.put(g), localGuns: guns });
+      $('#sync-token').value = ''; $('#sync-pass').value = ''; $('#sync-pass2').value = '';
+      msg.textContent = '';
+      await load();
+      toast(r.existing ? `Connected · restored ${r.restored} firearm${r.restored === 1 ? '' : 's'}` : 'Auto-backup is on');
+    } catch (err) {
+      msg.className = 'note err';
+      msg.textContent = /Wrong password/.test(err.message)
+        ? 'That repo already has a backup, and this password doesn\'t unlock it.'
+        : err.message || 'Could not connect';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Turn on auto-backup';
+    }
+  };
+  $('#btn-sync-now').onclick = () => Sync.flush().then(() => toast(Sync.status().error || 'Backed up'));
+  $('#btn-sync-off').onclick = async () => {
+    if (!confirm('Turn off auto-backup on this phone? Your existing cloud backup stays in the repo.')) return;
+    await Sync.disable();
+    renderBackupStatus();
+  };
+  setInterval(() => Sync.status().enabled && renderSync(), 30000);
 
   // ---------- dialogs ----------
   $$('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
@@ -278,5 +399,5 @@
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
-  load();
+  load().then(() => Sync.init({ getGun: id => DB.get(id), onStatus: renderBackupStatus }));
 })();

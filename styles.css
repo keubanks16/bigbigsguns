@@ -149,3 +149,20 @@ details.more .fields { margin-top: 8px; }
   opacity: 0; pointer-events: none; transition: .2s; z-index: 50;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+.banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: rgba(201,162,74,.12); border: 1px solid rgba(201,162,74,.45); color: var(--text);
+  border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; font-size: 14px;
+}
+.btn.small { padding: 7px 12px; font-size: 13px; border-color: var(--brass); color: var(--brass); white-space: nowrap; }
+
+.sync-card { display: flex; gap: 12px; align-items: center; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+.sync-card div { display: flex; flex-direction: column; }
+.sync-card small { color: var(--muted); font-size: 13px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); flex: none; box-shadow: 0 0 0 4px rgba(127,163,122,.18); }
+.dot.busy { background: var(--brass); box-shadow: 0 0 0 4px rgba(201,162,74,.2); animation: pulse 1s ease-in-out infinite; }
+.dot.err { background: var(--red); box-shadow: 0 0 0 4px rgba(208,106,94,.2); }
+@keyframes pulse { 50% { opacity: .4; } }
+a { color: var(--brass); }
+.cloud { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
