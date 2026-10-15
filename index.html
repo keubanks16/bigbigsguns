@@ -29,6 +29,10 @@
   </header>
 
   <main>
+    <div id="backup-banner" class="banner hidden">
+      <span id="backup-banner-text">You have changes that aren't backed up.</span>
+      <button class="btn small" id="btn-backup-now">Back up now</button>
+    </div>
     <section class="toolbar">
       <input type="search" id="search" placeholder="Search make, model, serial, owner…" autocomplete="off">
       <div class="seg" role="tablist" id="filter">
@@ -138,6 +142,30 @@
       <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
     </div>
 
+    <h3>Automatic cloud backup</h3>
+    <div id="sync-on" class="hidden">
+      <div class="sync-card">
+        <span class="dot" id="sync-dot"></span>
+        <div><b id="sync-title">Auto-backup is on</b><small id="sync-detail"></small></div>
+      </div>
+      <div class="row">
+        <button class="btn" id="btn-sync-now">Back up now</button>
+        <button class="btn ghost danger" id="btn-sync-off">Turn off</button>
+      </div>
+    </div>
+    <div id="sync-off">
+      <p class="note">Every time you add, edit or delete a gun, it's encrypted on this phone and saved to your own <strong>private</strong> GitHub repo. On a new phone, enter the same details here and your whole catalog comes back. <a href="https://github.com/keubanks16/bigbigsguns#automatic-cloud-backup" target="_blank" rel="noopener">Setup steps</a></p>
+      <div class="fields">
+        <label class="full">Private backup repo<input id="sync-repo" placeholder="keubanks16/bigbigsguns-vault" autocapitalize="off" autocomplete="off"></label>
+        <label class="full">GitHub access token<input id="sync-token" type="password" placeholder="github_pat_…" autocomplete="off"></label>
+        <label class="full">Backup password<input id="sync-pass" type="password" autocomplete="new-password" placeholder="At least 8 characters"></label>
+        <label class="full">Confirm password<input id="sync-pass2" type="password" autocomplete="new-password" placeholder="Not needed when restoring"></label>
+      </div>
+      <p class="note"><strong>Write the password down somewhere safe.</strong> It can't be recovered, and without it the backup can't be opened — by anyone, including you.</p>
+      <button class="btn primary" id="btn-sync-on">Turn on auto-backup</button>
+      <p id="sync-msg" class="note"></p>
+    </div>
+
     <h3>Smart photo recognition</h3>
     <p class="note">Without a key, the app reads text off your photos on-device (good for serial numbers). Add an Anthropic API key and it can also recognize the make and model from the gun itself. The key stays on this device only.</p>
     <div class="fields">
@@ -146,18 +174,30 @@
     </div>
     <button class="btn" id="btn-save-settings">Save settings</button>
 
-    <h3>Backup</h3>
-    <p class="note">Your catalog lives only on this device. Export a backup regularly and keep it somewhere safe — it's also handy for insurance.</p>
-    <div class="row">
-      <button class="btn" id="btn-export">Export backup</button>
-      <button class="btn" id="btn-csv">Export spreadsheet (CSV)</button>
-      <label class="btn">Import backup<input type="file" accept="application/json" id="in-import" hidden></label>
+    <details class="more">
+    <summary>Backup file (optional extra copy)</summary>
+    <p class="note">Backups are locked with a password before they leave this phone, so you can safely keep them in Google Drive, iCloud, OneDrive or email — nobody can open them without your password. <strong>Write the password down somewhere safe; it can't be recovered.</strong></p>
+    <div class="fields">
+      <label class="full">Backup password<input id="bk-pass" type="password" autocomplete="new-password" placeholder="At least 8 characters"></label>
+      <label class="full">Confirm password<input id="bk-pass2" type="password" autocomplete="new-password"></label>
     </div>
+    <p id="bk-status" class="note"></p>
+    <div class="row">
+      <button class="btn primary" id="btn-export">Save encrypted backup</button>
+      <label class="btn">Restore backup<input type="file" accept=".bbgc,application/json,application/octet-stream" id="in-import" hidden></label>
+    </div>
+    </details>
+
+    <h3>Spreadsheet</h3>
+    <p class="note">A CSV for insurance or printing. It is <strong>not</strong> encrypted, so don't leave it sitting in cloud storage.</p>
+    <button class="btn" id="btn-csv">Export spreadsheet (CSV)</button>
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
 
   <script src="db.js"></script>
+  <script src="vault.js"></script>
+  <script src="sync.js"></script>
   <script src="recognize.js"></script>
   <script src="app.js"></script>
 </body>
