@@ -14,7 +14,26 @@
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="locked">
+  <section id="login" class="login">
+    <div class="login-box">
+      <img src="icon.svg" alt="" class="login-mark">
+      <h1>Big Big's Gun Collection</h1>
+      <p class="sub" id="login-sub">Log in to see your collection on any device.</p>
+      <form id="form-login" autocomplete="on">
+        <div class="fields">
+          <label class="full">Username<input id="li-user" name="username" autocomplete="username" autocapitalize="off" spellcheck="false" required></label>
+          <label class="full">Password<input id="li-pass" name="password" type="password" autocomplete="current-password" required></label>
+          <label class="full hidden" id="li-pass2-wrap">Confirm password<input id="li-pass2" type="password" autocomplete="new-password"></label>
+        </div>
+        <p class="note hidden" id="li-warn"><strong>Write your password down somewhere safe.</strong> Your collection is encrypted with it, so it can't be reset — if it's lost, so is the data.</p>
+        <p class="note err" id="li-msg"></p>
+        <button class="btn primary wide" id="li-go" type="submit">Log in</button>
+      </form>
+      <button class="link" id="li-switch" type="button">New here? Create an account</button>
+    </div>
+  </section>
+
   <header class="topbar">
     <div class="brand">
       <img src="icon.svg" alt="" class="brand-mark">
@@ -150,28 +169,14 @@
       <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
     </div>
 
-    <h3>Automatic cloud backup</h3>
-    <div id="sync-on" class="hidden">
-      <div class="sync-card">
-        <span class="dot" id="sync-dot"></span>
-        <div><b id="sync-title">Auto-backup is on</b><small id="sync-detail"></small></div>
-      </div>
-      <div class="row">
-        <button class="btn" id="btn-sync-now">Back up now</button>
-        <button class="btn ghost danger" id="btn-sync-off">Turn off</button>
-      </div>
+    <h3>Account</h3>
+    <div class="sync-card">
+      <span class="dot" id="sync-dot"></span>
+      <div><b id="sync-title">Signed in</b><small id="sync-detail"></small></div>
     </div>
-    <div id="sync-off">
-      <p class="note">Every time you add, edit or delete a gun, it's encrypted on this phone and saved to your own <strong>private</strong> GitHub repo. On a new phone, enter the same details here and your whole catalog comes back. <a href="https://github.com/keubanks16/bigbigsguns#automatic-cloud-backup" target="_blank" rel="noopener">Setup steps</a></p>
-      <div class="fields">
-        <label class="full">Private backup repo<input id="sync-repo" placeholder="keubanks16/bigbigsguns-vault" autocapitalize="off" autocomplete="off"></label>
-        <label class="full">GitHub access token<input id="sync-token" type="password" placeholder="github_pat_…" autocomplete="off"></label>
-        <label class="full">Backup password<input id="sync-pass" type="password" autocomplete="new-password" placeholder="At least 8 characters"></label>
-        <label class="full">Confirm password<input id="sync-pass2" type="password" autocomplete="new-password" placeholder="Not needed when restoring"></label>
-      </div>
-      <p class="note"><strong>Write the password down somewhere safe.</strong> It can't be recovered, and without it the backup can't be opened — by anyone, including you.</p>
-      <button class="btn primary" id="btn-sync-on">Turn on auto-backup</button>
-      <p id="sync-msg" class="note"></p>
+    <div class="row">
+      <button class="btn" id="btn-sync-now">Sync now</button>
+      <button class="btn ghost danger" id="btn-logout">Log out</button>
     </div>
 
     <h3>Smart photo recognition</h3>
@@ -209,7 +214,7 @@
 
   <script src="db.js"></script>
   <script src="vault.js"></script>
-  <script src="sync.js"></script>
+  <script src="account.js"></script>
   <script src="csvimport.js"></script>
   <script src="recognize.js"></script>
   <script src="app.js"></script>

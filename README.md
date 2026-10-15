@@ -5,9 +5,9 @@ A private, phone-friendly catalog for a firearm collection.
 - **Snap two photos** — the gun and its serial number — and the app fills in make, model, caliber and serial.
 - **Ownership** — mark each gun as yours, or as stored for someone else with their name and phone.
 - **Search & filter** — All / Mine / Stored for others.
-- **Automatic encrypted cloud backup** — every change is encrypted on your phone and saved to your own private GitHub repo.
+- **Log in anywhere** — username + password account; your collection syncs to every phone and computer you log in on.
 - **Extras** — an encrypted backup file you can keep in Drive/iCloud, and a CSV spreadsheet for insurance.
-- **Private by design** — the catalog lives on your device. The only thing that ever leaves it is the encrypted backup, which can't be opened without your backup password. This app repo being public never exposes your collection.
+- **Private by design** — everything is encrypted on your device with your password before it's uploaded. The server only stores scrambled data it can't read.
 
 ## Auto-fill
 
@@ -25,32 +25,19 @@ Live at **https://keubanks16.github.io/bigbigsguns/** once GitHub Pages is on
 
 On your phone, open the link and choose **Add to Home Screen** to install it like an app.
 
-> Data lives in the browser you use. Export a backup before clearing browser data or switching phones, then use **Import backup** on the new device.
 
-## Automatic cloud backup
 
-Every time you add, edit or delete a gun, the app encrypts it on your phone (AES-256, key made from your backup password) and saves it to a **private** GitHub repo you own. Changes made with no signal wait and upload when you reconnect. GitHub only ever sees scrambled data.
+## Accounts & sync
 
-### One-time setup (about 5 minutes)
+Create an account on the login screen, then log in with the same username and password on any device. Adds, edits and deletes sync within seconds; changes made offline sync when you're back online.
 
-1. **Create a private repo** for the backups: https://github.com/new
-   - Name: `bigbigsguns-vault`
-   - Visibility: **Private** (the app refuses public repos)
-   - Tick **Add a README file**, then **Create repository**.
-2. **Create an access token** limited to that one repo: https://github.com/settings/personal-access-tokens/new
-   - Token name: `Gun collection backup`
-   - Expiration: **No expiration** (fine here: the token only reaches this one private repo, and everything in it is encrypted)
-   - Repository access: **Only select repositories** → `bigbigsguns-vault`
-   - Permissions → Repository permissions → **Contents: Read and write**
-   - **Generate token** and copy it (starts with `github_pat_`).
-3. **In the app:** Settings ⚙ → Automatic cloud backup → enter `keubanks16/bigbigsguns-vault`, paste the token, choose a backup password → **Turn on auto-backup**.
+**How it's protected:** your password never leaves your device. From it the app derives two keys (PBKDF2-SHA256, 600,000 rounds): one encrypts every gun (AES-256-GCM) before upload, the other proves your password to the server, which only keeps a slow hash of it. The server stores encrypted records it cannot read. 8 wrong passwords lock the account for 15 minutes.
 
-**Write the backup password down and keep it somewhere safe** (e.g. with your firearm paperwork or in a password manager). It is never stored or sent anywhere, so it can't be reset — without it the backup can't be opened by anyone, including you.
+**Your password can't be reset.** Because the data is encrypted with it, a lost password means a lost catalog. Write it down somewhere safe.
 
-### New phone / restoring
+## Server (`server/`)
 
-Install the app, open Settings ⚙ → Automatic cloud backup, and enter the same repo, a token, and the **same backup password**. Your whole catalog, photos included, downloads back onto the phone and auto-backup continues from there.
+A Cloudflare Worker (`bigbigsguns`) with a D1 database (`bigbigsguns`: users, sessions, gun index) and an R2 bucket (`bigbigsguns-vault`: encrypted records). It deploys automatically from this repo through Cloudflare Workers Builds (root directory `server`).
 
-### If something goes wrong
-
-A banner appears on the main screen if backups stop (e.g. the token expired). Make a new token (step 2) and turn auto-backup off and on again with it.
+- `MAX_USERS` in `server/wrangler.jsonc` caps how many accounts can be created (default 5).
+- API: `https://bigbigsguns.kollinmeubanks.workers.dev`

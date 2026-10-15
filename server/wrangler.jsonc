@@ -1,0 +1,16 @@
+// Deployed by Cloudflare Workers Builds from this folder (root directory: server).
+{
+  "name": "bigbigsguns",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "bigbigsguns", "database_id": "633340ff-b5e9-40e0-8067-ee7d5fd3dd53" }
+  ],
+  "r2_buckets": [
+    { "binding": "VAULT", "bucket_name": "bigbigsguns-vault" }
+  ],
+  // How many accounts can be created on this server (you + family). Raise or lower any time.
+  "vars": { "MAX_USERS": "5" }
+}

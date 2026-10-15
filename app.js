@@ -265,29 +265,21 @@
   const bkSave = st => { try { localStorage.setItem(BK, JSON.stringify(st)); } catch {} };
   const markChanged = (op, id) => {
     const st = bkState(); st.changed = Date.now(); bkSave(st);
-    if (op && id) Sync.track(op, id);
+    if (op && id) Account.track(op, id);
   };
 
+  // Banner on the main screen only when syncing is stuck.
   function renderBackupStatus() {
-    const sync = Sync.status();
-    renderSync(sync);
-    if (sync.enabled) {
-      const hasErr = sync.error && !/^Offline/.test(sync.error);
-      $('#backup-banner').classList.toggle('hidden', !hasErr);
-      $('#backup-banner-text').textContent = `Auto-backup problem: ${sync.error}`;
-      return;
-    }
-    const st = bkState();
-    const last = st.last ? new Date(st.last).toLocaleString() : null;
-    $('#bk-status').textContent = last ? `Last backup: ${last}` : 'No backup yet.';
-    const stale = guns.length && (!st.last || (st.changed || 0) > st.last || Date.now() - st.last > 30 * 864e5);
-    $('#backup-banner').classList.toggle('hidden', !stale);
-    $('#backup-banner-text').textContent = !st.last
-      ? `Your ${guns.length === 1 ? 'gun is' : `${guns.length} guns are`} only on this phone. Turn on auto-backup to keep them safe.`
-      : (st.changed || 0) > st.last ? "You have changes that aren't backed up." : "It's been over a month since your last backup.";
+    const st = Account.status();
+    renderSync(st);
+    const bk = bkState();
+    $('#bk-status').textContent = bk.last ? `Last backup file: ${new Date(bk.last).toLocaleString()}` : '';
+    const problem = st.loggedIn && st.error && st.pending;
+    $('#backup-banner').classList.toggle('hidden', !problem);
+    $('#backup-banner-text').textContent = `${st.pending} change${st.pending === 1 ? '' : 's'} not synced yet: ${st.error}`;
   }
 
-  $('#btn-backup-now').onclick = () => $('#btn-settings').click();
+  $('#btn-backup-now').onclick = () => Account.sync().then(() => toast(Account.status().error || 'Synced'));
 
   $('#btn-export').onclick = async () => {
     const p1 = $('#bk-pass').value, p2 = $('#bk-pass2').value;
@@ -335,11 +327,11 @@
       const skipped = incoming.length - fresh.length;
       if (!fresh.length) { msg.textContent = `All ${incoming.length} guns in that file are already in your catalog.`; return; }
       if (!confirm(`Add ${fresh.length} gun${fresh.length === 1 ? '' : 's'} to your catalog?${skipped ? `\n\n${skipped} already in the catalog will be skipped.` : ''}`)) return;
-      for (const g of fresh) { await DB.put(g); Sync.track('put', g.id); }
+      for (const g of fresh) { await DB.put(g); Account.track('put', g.id); }
       markChanged();
       await load();
       msg.className = 'note ok';
-      msg.textContent = `Added ${fresh.length} gun${fresh.length === 1 ? '' : 's'}${skipped ? ` (skipped ${skipped} already here)` : ''}.${Sync.status().enabled ? ' Backing them up now — keep the app open for a couple of minutes.' : ''}`;
+      msg.textContent = `Added ${fresh.length} gun${fresh.length === 1 ? '' : 's'}${skipped ? ` (skipped ${skipped} already here)` : ''}.${Account.status().loggedIn ? ' Saving them to your account now — keep the app open for a minute.' : ''}`;
       toast(`Imported ${fresh.length} guns`);
     } catch (err) {
       msg.className = 'note err';
@@ -361,7 +353,7 @@
       }
       const list = Array.isArray(data) ? data : data.guns;
       if (!Array.isArray(list)) throw new Error("That doesn't look like a backup file");
-      for (const g of list) if (g && g.id) { await DB.put(g); Sync.track('put', g.id); }
+      for (const g of list) if (g && g.id) { await DB.put(g); Account.track('put', g.id); }
       const st = bkState(); st.last = Date.now(); st.changed = 0; bkSave(st);
       await load();
       toast(`Restored ${list.length} firearm${list.length === 1 ? '' : 's'}`);
@@ -369,7 +361,7 @@
   };
 
 
-  // ---------- automatic cloud backup ----------
+  // ---------- account ----------
   function ago(t) {
     const s = Math.round((Date.now() - t) / 1000);
     if (s < 60) return 'just now';
@@ -377,51 +369,74 @@
     if (s < 86400) return `${Math.round(s / 3600)} hr ago`;
     return new Date(t).toLocaleDateString();
   }
-  function renderSync(st = Sync.status()) {
-    $('#sync-on').classList.toggle('hidden', !st.enabled);
-    $('#sync-off').classList.toggle('hidden', st.enabled);
-    if (!st.enabled) return;
-    const dot = $('#sync-dot');
-    dot.className = 'dot' + (st.busy ? ' busy' : st.error ? ' err' : '');
-    $('#sync-title').textContent = st.busy ? 'Backing up…' : st.error ? 'Backup paused' : 'Auto-backup is on';
-    $('#sync-detail').textContent = st.error
-      ? `${st.error}${st.pending ? ` · ${st.pending} change${st.pending === 1 ? '' : 's'} waiting` : ''}`
-      : `${st.pending ? `${st.pending} change${st.pending === 1 ? '' : 's'} uploading · ` : 'Everything saved · '}last backup ${ago(st.last)} · ${st.repo}`;
+  function renderSync(st = Account.status()) {
+    $('#sync-dot').className = 'dot' + (st.busy ? ' busy' : st.error ? ' err' : '');
+    $('#sync-title').textContent = `Signed in as ${st.username}`;
+    $('#sync-detail').textContent = st.busy ? 'Syncing…'
+      : st.error ? `${st.error}${st.pending ? ` · ${st.pending} change${st.pending === 1 ? '' : 's'} waiting` : ''}`
+      : st.pending ? `${st.pending} change${st.pending === 1 ? '' : 's'} waiting to sync`
+      : st.last ? `Everything saved · synced ${ago(st.last)}` : 'Connecting…';
   }
 
-  $('#btn-sync-on').onclick = async () => {
-    const repo = $('#sync-repo').value || $('#sync-repo').placeholder;
-    const token = $('#sync-token').value.trim();
-    const p1 = $('#sync-pass').value, p2 = $('#sync-pass2').value;
-    const msg = $('#sync-msg');
-    msg.className = 'note err';
-    if (!token) { msg.textContent = 'Paste your GitHub access token.'; return; }
-    if (p1.length < 8) { msg.textContent = 'Use a backup password of at least 8 characters.'; return; }
-    if (p2 && p1 !== p2) { msg.textContent = "Passwords don't match."; return; }
-    const btn = $('#btn-sync-on'); btn.disabled = true; btn.textContent = 'Connecting…';
-    msg.className = 'note'; msg.textContent = 'Checking the repo…';
+  let signingUp = false;
+  function showLogin(msg = '') {
+    document.body.classList.add('locked');
+    $('#login').classList.remove('hidden');
+    $$('dialog[open]').forEach(d => d.close());
+    const st = Account.status();
+    if (st.username && !$('#li-user').value) $('#li-user').value = st.username;
+    $('#li-msg').textContent = msg;
+  }
+  function hideLogin() {
+    document.body.classList.remove('locked');
+    $('#login').classList.add('hidden');
+    $('#li-pass').value = ''; $('#li-pass2').value = ''; $('#li-msg').textContent = '';
+  }
+  function setMode(up) {
+    signingUp = up;
+    $('#li-pass2-wrap').classList.toggle('hidden', !up);
+    $('#li-warn').classList.toggle('hidden', !up);
+    $('#li-pass').autocomplete = up ? 'new-password' : 'current-password';
+    $('#li-go').textContent = up ? 'Create account' : 'Log in';
+    $('#li-switch').textContent = up ? 'Already have an account? Log in' : 'New here? Create an account';
+    $('#login-sub').textContent = up ? 'Pick a username and password. You’ll use them to open your collection on any device.' : 'Log in to see your collection on any device.';
+    $('#li-msg').textContent = '';
+  }
+  $('#li-switch').onclick = () => setMode(!signingUp);
+
+  $('#form-login').onsubmit = async e => {
+    e.preventDefault();
+    const u = $('#li-user').value.trim(), p = $('#li-pass').value, msg = $('#li-msg');
+    if (!/^[a-zA-Z0-9._-]{3,32}$/.test(u)) { msg.textContent = 'Username must be 3–32 letters, numbers, dots, dashes or underscores.'; return; }
+    if (signingUp) {
+      if (p.length < 10) { msg.textContent = 'Use a password of at least 10 characters — it protects every serial number.'; return; }
+      if (p !== $('#li-pass2').value) { msg.textContent = "Passwords don't match."; return; }
+    }
+    const btn = $('#li-go'), label = btn.textContent;
+    btn.disabled = true; btn.textContent = signingUp ? 'Creating account…' : 'Logging in…'; msg.textContent = '';
     try {
-      const r = await Sync.enable({ token, repo, password: p1, saveGun: g => DB.put(g), localGuns: guns });
-      $('#sync-token').value = ''; $('#sync-pass').value = ''; $('#sync-pass2').value = '';
-      msg.textContent = '';
+      await (signingUp ? Account.signup(u, p) : Account.login(u, p));
+      hideLogin();
       await load();
-      toast(r.existing ? `Connected · restored ${r.restored} firearm${r.restored === 1 ? '' : 's'}` : 'Auto-backup is on');
+      toast(signingUp ? 'Account created' : `Welcome back, ${Account.status().username}`);
+      setMode(false);
     } catch (err) {
-      msg.className = 'note err';
-      msg.textContent = /Wrong password/.test(err.message)
-        ? 'That repo already has a backup, and this password doesn\'t unlock it.'
-        : err.message || 'Could not connect';
+      msg.textContent = err.message || 'Something went wrong';
     } finally {
-      btn.disabled = false; btn.textContent = 'Turn on auto-backup';
+      btn.disabled = false; btn.textContent = label;
     }
   };
-  $('#btn-sync-now').onclick = () => Sync.flush().then(() => toast(Sync.status().error || 'Backed up'));
-  $('#btn-sync-off').onclick = async () => {
-    if (!confirm('Turn off auto-backup on this phone? Your existing cloud backup stays in the repo.')) return;
-    await Sync.disable();
-    renderBackupStatus();
+
+  $('#btn-sync-now').onclick = () => Account.sync().then(() => { renderSync(); toast(Account.status().error || 'Synced'); });
+  $('#btn-logout').onclick = async () => {
+    const st = Account.status();
+    const warn = st.pending ? `\n\n${st.pending} change${st.pending === 1 ? " hasn't" : "s haven't"} synced yet and will be lost.` : '';
+    if (!confirm(`Log out? Your collection stays safe in your account and is removed from this device.${warn}`)) return;
+    await Account.logout();
+    await load();
+    showLogin();
   };
-  setInterval(() => Sync.status().enabled && renderSync(), 30000);
+  setInterval(() => Account.status().loggedIn && renderSync(), 30000);
 
   // ---------- dialogs ----------
   $$('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
@@ -431,5 +446,17 @@
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
-  load().then(() => Sync.init({ getGun: id => DB.get(id), onStatus: renderBackupStatus }));
+  Account.init({
+    getGun: id => DB.get(id),
+    putGun: g => DB.put(g),
+    removeGun: id => DB.remove(id),
+    allGuns: () => DB.all(),
+    onChange: () => load(),
+    onStatus: () => renderBackupStatus(),
+    onAuthLost: () => showLogin('Your session ended — please log in again.'),
+  });
+  load().then(async () => {
+    if (await Account.restore()) { hideLogin(); Account.sync(); }
+    else showLogin();
+  });
 })();
