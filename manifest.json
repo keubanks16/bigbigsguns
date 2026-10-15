@@ -1,0 +1,10 @@
+{
+  "name": "Big Big's Gun Collection",
+  "short_name": "Gun Collection",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#14171a",
+  "theme_color": "#14171a",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

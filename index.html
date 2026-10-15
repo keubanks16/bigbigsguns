@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Big Big's Gun Collection</title>
+  <meta name="theme-color" content="#14171a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="icon.svg" alt="" class="brand-mark">
+      <div>
+        <h1>Big Big's Gun Collection</h1>
+        <p id="count-line" class="sub">Collection catalog</p>
+      </div>
+    </div>
+    <button class="icon-btn" id="btn-settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.4-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.4 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.4L19.4 13ZM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z" transform="translate(-1 0)"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <section class="toolbar">
+      <input type="search" id="search" placeholder="Search make, model, serial, owner…" autocomplete="off">
+      <div class="seg" role="tablist" id="filter">
+        <button class="on" data-f="all">All</button>
+        <button data-f="mine">Mine</button>
+        <button data-f="stored">Stored for others</button>
+      </div>
+    </section>
+
+    <section id="grid" class="grid" aria-live="polite"></section>
+
+    <div id="empty" class="empty hidden">
+      <div class="empty-icon">⌖</div>
+      <h2>No guns cataloged yet</h2>
+      <p>Tap <strong>Add gun</strong>, snap a photo of the firearm and its serial number, and the app fills in the make, model and serial for you.</p>
+    </div>
+  </main>
+
+  <button class="fab" id="btn-add"><span>+</span> Add gun</button>
+
+  <!-- Add / edit dialog -->
+  <dialog id="dlg-edit" class="sheet">
+    <form method="dialog" id="form-edit">
+      <div class="sheet-head">
+        <h2 id="edit-title">Add gun</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+      </div>
+
+      <div class="photos">
+        <label class="photo-slot" id="slot-gun">
+          <input type="file" accept="image/*" capture="environment" id="in-gun" hidden>
+          <img alt="" class="hidden">
+          <span class="slot-label"><b>Gun photo</b><small>Side with the markings</small></span>
+        </label>
+        <label class="photo-slot" id="slot-serial">
+          <input type="file" accept="image/*" capture="environment" id="in-serial" hidden>
+          <img alt="" class="hidden">
+          <span class="slot-label"><b>Serial number</b><small>Close-up, good light</small></span>
+        </label>
+      </div>
+
+      <button type="button" class="btn scan" id="btn-scan" disabled>
+        <span class="scan-icon">◎</span> <span id="scan-text">Auto-fill from photos</span>
+      </button>
+      <p id="scan-note" class="note"></p>
+
+      <div class="fields">
+        <label>Make<input name="make" placeholder="e.g. Glock"></label>
+        <label>Model<input name="model" placeholder="e.g. 19 Gen 5"></label>
+        <label class="full">Serial number<input name="serial" class="mono" placeholder="Check against the photo" autocapitalize="characters"></label>
+        <label>Caliber<input name="caliber" placeholder="e.g. 9mm"></label>
+        <label>Type
+          <select name="type">
+            <option value="">—</option>
+            <option>Pistol</option><option>Revolver</option><option>Rifle</option>
+            <option>Shotgun</option><option>Other</option>
+          </select>
+        </label>
+      </div>
+
+      <fieldset class="owner">
+        <legend>Ownership</legend>
+        <div class="seg two" id="owner-seg">
+          <button type="button" data-o="mine" class="on">It's mine</button>
+          <button type="button" data-o="stored">Storing for someone</button>
+        </div>
+        <div id="owner-fields" class="fields hidden">
+          <label>Owner name<input name="ownerName" placeholder="Who it belongs to"></label>
+          <label>Owner phone<input name="ownerPhone" type="tel" placeholder="Optional"></label>
+          <label class="full">Stored since<input name="storedSince" type="date"></label>
+        </div>
+      </fieldset>
+
+      <details class="more">
+        <summary>More details</summary>
+        <div class="fields">
+          <label>Date acquired<input name="acquired" type="date"></label>
+          <label>Price paid<input name="price" inputmode="decimal" placeholder="$"></label>
+          <label class="full">Purchased from<input name="source" placeholder="Store or person"></label>
+          <label class="full">Notes<textarea name="notes" rows="3" placeholder="Optics, accessories, condition…"></textarea></label>
+        </div>
+      </details>
+
+      <div class="sheet-foot">
+        <button type="button" class="btn ghost danger hidden" id="btn-delete">Delete</button>
+        <button type="submit" class="btn primary" id="btn-save">Save to catalog</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Detail dialog -->
+  <dialog id="dlg-view" class="sheet">
+    <div class="sheet-head">
+      <h2 id="view-title"></h2>
+      <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+    </div>
+    <div id="view-body"></div>
+    <div class="sheet-foot">
+      <button type="button" class="btn primary" id="btn-edit">Edit</button>
+    </div>
+  </dialog>
+
+  <!-- Settings dialog -->
+  <dialog id="dlg-settings" class="sheet">
+    <div class="sheet-head">
+      <h2>Settings</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+    </div>
+
+    <h3>Smart photo recognition</h3>
+    <p class="note">Without a key, the app reads text off your photos on-device (good for serial numbers). Add an Anthropic API key and it can also recognize the make and model from the gun itself. The key stays on this device only.</p>
+    <div class="fields">
+      <label class="full">Anthropic API key<input id="set-key" type="password" placeholder="sk-ant-…" autocomplete="off"></label>
+      <label class="full">Model<input id="set-model" placeholder="claude-sonnet-5-5"></label>
+    </div>
+    <button class="btn" id="btn-save-settings">Save settings</button>
+
+    <h3>Backup</h3>
+    <p class="note">Your catalog lives only on this device. Export a backup regularly and keep it somewhere safe — it's also handy for insurance.</p>
+    <div class="row">
+      <button class="btn" id="btn-export">Export backup</button>
+      <button class="btn" id="btn-csv">Export spreadsheet (CSV)</button>
+      <label class="btn">Import backup<input type="file" accept="application/json" id="in-import" hidden></label>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="db.js"></script>
+  <script src="recognize.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
