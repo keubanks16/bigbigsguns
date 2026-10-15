@@ -1,7 +1,5 @@
-// Reads make, model, caliber and serial number off the photos.
-//  - With an Anthropic API key (Settings): Claude looks at both photos and identifies the gun.
-//  - Without one: on-device OCR (Tesseract.js) reads the stamped text and we pick out
-//    the serial and a known manufacturer name.
+// Reads make, caliber and serial number off the photos, right on the device (Tesseract.js):
+// it reads the stamped text, then picks out the serial and a known manufacturer name.
 const Recognize = (() => {
   const MAKERS = [
     'Glock', 'Smith & Wesson', 'Sig Sauer', 'Ruger', 'Springfield Armory', 'Colt', 'Beretta',
@@ -27,49 +25,6 @@ const Recognize = (() => {
     [/12\s?GA|12\s?GAUGE/i, '12 ga'], [/20\s?GA|20\s?GAUGE/i, '20 ga'], [/\.?44\s?MAG/i, '.44 Mag'],
     [/10\s?MM/i, '10mm'], [/6\.5\s?CREED/i, '6.5 Creedmoor'], [/\.?300\s?(BLK|BLACKOUT|AAC)/i, '.300 BLK'],
   ];
-
-  // ---------- Claude (vision) ----------
-  async function withClaude(images, key, model) {
-    const content = [];
-    if (images.gun) {
-      content.push({ type: 'text', text: 'Photo 1 — the firearm:' });
-      content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: images.gun.split(',')[1] } });
-    }
-    if (images.serial) {
-      content.push({ type: 'text', text: 'Photo 2 — close-up of the serial number:' });
-      content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: images.serial.split(',')[1] } });
-    }
-    content.push({
-      type: 'text',
-      text: 'I am cataloging my personal firearm collection for insurance records. ' +
-        'Identify the manufacturer, model, caliber and type from the photos (use the roll marks and ' +
-        'engravings when visible), and read the serial number exactly as stamped. ' +
-        'Reply with only a JSON object: {"make":"","model":"","caliber":"","type":"Pistol|Revolver|Rifle|Shotgun|Other","serial":"","confidence":"high|medium|low","note":""}. ' +
-        'Use an empty string for anything you cannot determine. Put any doubt (e.g. an unclear character in the serial) in "note".',
-    });
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({ model, max_tokens: 400, messages: [{ role: 'user', content }] }),
-    });
-    if (!res.ok) {
-      let msg = `API error ${res.status}`;
-      try { msg = (await res.json()).error.message || msg; } catch {}
-      throw new Error(msg);
-    }
-    const data = await res.json();
-    const text = (data.content || []).map(c => c.text || '').join('');
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('Could not read the response');
-    const out = JSON.parse(match[0]);
-    return { ...out, serial: (out.serial || '').toUpperCase().replace(/\s+/g, ''), source: 'claude' };
-  }
 
   // ---------- On-device OCR ----------
   let tesseractLoading;
@@ -151,13 +106,7 @@ const Recognize = (() => {
     };
   }
 
-  async function run(images, settings, onProgress) {
-    if (settings.key) {
-      onProgress && onProgress('Identifying with Claude…');
-      return withClaude(images, settings.key, settings.model || 'claude-sonnet-5-5');
-    }
-    return withOCR(images, onProgress);
-  }
+  const run = (images, onProgress) => withOCR(images, onProgress);
 
   return { run };
 })();

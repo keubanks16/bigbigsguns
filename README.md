@@ -11,12 +11,7 @@ A private, phone-friendly catalog for a firearm collection.
 
 ## Auto-fill
 
-| Mode | How | Fills |
-|---|---|---|
-| Default | On-device text reading (Tesseract.js) | Serial, make (from stamped text), caliber |
-| With API key | Claude vision via your Anthropic API key (Settings ⚙) | Make, model, caliber, type, serial |
-
-The API key is saved only in your browser. Always check the serial against the photo before saving.
+Snap the gun and its serial number and the app reads the stamped text right on your device, filling in the serial, the make and the caliber. Always check the serial against the photo before saving.
 
 ## Using it
 
