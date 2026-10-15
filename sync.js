@@ -65,7 +65,8 @@ const Sync = (() => {
       let msg = `GitHub error ${res.status}`;
       try { msg = (await res.json()).message || msg; } catch {}
       if (res.status === 401) msg = 'GitHub token is invalid or expired';
-      if (res.status === 403 || res.status === 404) msg = `GitHub denied access (${msg}). Check the token has Contents read & write on this repo.`;
+      if ((res.status === 403 || res.status === 429) && /rate limit/i.test(msg)) msg = 'GitHub asked us to slow down — retrying shortly';
+      else if (res.status === 403 || res.status === 404) msg = `GitHub denied access (${msg}). Check the token has Contents read & write on this repo.`;
       const err = new Error(msg); err.status = res.status; throw err;
     }
     return raw ? res.text() : res.status === 204 ? null : res.json();
@@ -172,6 +173,7 @@ const Sync = (() => {
         q = queue();
         if (q[id] === op) { delete q[id]; write(QUEUE, q); }
         emit();
+        await new Promise(r => setTimeout(r, 1000)); // GitHub allows ~80 writes/minute
       }
       setCfg({ last: Date.now(), error: '' });
     } catch (err) {
