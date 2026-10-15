@@ -39,7 +39,7 @@ Every time you add, edit or delete a gun, the app encrypts it on your phone (AES
    - Tick **Add a README file**, then **Create repository**.
 2. **Create an access token** limited to that one repo: https://github.com/settings/personal-access-tokens/new
    - Token name: `Gun collection backup`
-   - Expiration: the longest offered (set a calendar reminder to renew it)
+   - Expiration: **No expiration** (fine here: the token only reaches this one private repo, and everything in it is encrypted)
    - Repository access: **Only select repositories** → `bigbigsguns-vault`
    - Permissions → Repository permissions → **Contents: Read and write**
    - **Generate token** and copy it (starts with `github_pat_`).
