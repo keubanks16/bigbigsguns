@@ -14,7 +14,7 @@ const Account = (() => {
 
   let key = null;
   let hooks = {};
-  let timer = null, syncing = null, lastError = '', lastSync = 0;
+  let timer = null, syncing = null, lastError = '', lastSync = 0, progress = null;
 
   const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
   const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
@@ -27,7 +27,7 @@ const Account = (() => {
   const emit = () => hooks.onStatus && hooks.onStatus(status());
 
   function status() {
-    return { loggedIn: !!(state().token && key), username: state().username || '', pending: Object.keys(queue()).length, busy: !!syncing, error: lastError, last: lastSync };
+    return { loggedIn: !!(state().token && key), username: state().username || '', pending: Object.keys(queue()).length, busy: !!syncing, error: lastError, last: lastSync, progress };
   }
 
   // ---------- key storage ----------
@@ -86,7 +86,7 @@ const Account = (() => {
     write(ST, { username, token });
     lastError = '';
     emit();
-    await sync();
+    sync(); // loads in the background; the app opens right away
   }
 
   async function signup(username, password) {
@@ -148,42 +148,59 @@ const Account = (() => {
     return syncing;
   }
 
+  // Runs fn over items with a few requests in flight at once (much faster than one by one).
+  async function pool(items, n, fn) {
+    let i = 0;
+    await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+      while (i < items.length) await fn(items[i++]);
+    }));
+  }
+
   async function run() {
     emit();
     let changed = false;
     try {
       // 1. Send this device's changes.
-      for (const [id, op] of Object.entries(queue())) {
-        const rm = remote();
+      const outgoing = Object.entries(queue());
+      progress = outgoing.length > 3 ? { label: 'Saving', done: 0, total: outgoing.length } : null;
+      await pool(outgoing, 6, async ([id, op]) => {
+        let updated = null;
         if (op === 'delete') {
           await api(`/api/guns/${encodeURIComponent(id)}`, { method: 'DELETE' });
-          delete rm[id];
         } else {
           const gun = await hooks.getGun(id);
-          if (gun) {
-            const r = await api(`/api/guns/${encodeURIComponent(id)}`, { method: 'PUT', text: await Vault.seal(key, gun) });
-            rm[id] = r.updated;
-          }
+          if (gun) updated = (await api(`/api/guns/${encodeURIComponent(id)}`, { method: 'PUT', text: await Vault.seal(key, gun) })).updated;
         }
+        const rm = remote();
+        if (updated) rm[id] = updated; else delete rm[id];
         write(REMOTE, rm);
         const q = queue(); if (q[id] === op) { delete q[id]; write(QUEUE, q); }
+        if (progress) progress.done++;
         emit();
-      }
+      });
 
       // 2. Bring in changes made on other devices.
       const { guns: list } = await api('/api/guns');
-      const rm = remote(), q = queue();
-      const onServer = new Set();
-      for (const r of list) {
-        onServer.add(r.id);
-        if (q[r.id]) continue;
-        if (!(r.id in rm) || r.updated > rm[r.id]) {
-          const gun = await Vault.open(key, await api(`/api/guns/${encodeURIComponent(r.id)}`));
-          await hooks.putGun(gun);
-          rm[r.id] = r.updated; changed = true;
-        }
-      }
+      const onServer = new Set(list.map(r => r.id));
+      const known = remote(), pending = queue();
+      const incoming = list.filter(r => !pending[r.id] && (!(r.id in known) || r.updated > known[r.id]));
+      progress = incoming.length > 3 ? { label: 'Loading your collection', done: 0, total: incoming.length } : null;
+      emit();
+      let sinceRefresh = 0;
+      await pool(incoming, 8, async r => {
+        const gun = await Vault.open(key, await api(`/api/guns/${encodeURIComponent(r.id)}`));
+        await hooks.putGun(gun);
+        const rm = remote(); rm[r.id] = r.updated; write(REMOTE, rm);
+        changed = true;
+        if (progress) progress.done++;
+        emit();
+        // Show guns as they arrive instead of waiting for all of them.
+        if (++sinceRefresh >= 15 && hooks.onChange) { sinceRefresh = 0; hooks.onChange(); }
+      });
+      progress = null;
+
       // Deleted on another device, or never uploaded from this one.
+      const rm = remote(), q = queue();
       for (const g of await hooks.allGuns()) {
         if (onServer.has(g.id) || q[g.id]) continue;
         if (g.id in rm) { await hooks.removeGun(g.id); delete rm[g.id]; changed = true; }
@@ -193,6 +210,7 @@ const Account = (() => {
       lastError = ''; lastSync = Date.now();
       if (Object.keys(q).length) { clearTimeout(timer); timer = setTimeout(sync, 500); }
     } catch (err) {
+      progress = null;
       if (err.status === 401) {
         write(ST, { username: state().username }); // keep who was here so accounts never mix
         hooks.onAuthLost && hooks.onAuthLost();

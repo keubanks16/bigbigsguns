@@ -219,3 +219,4 @@ body.locked > :not(.login):not(.toast) { display: none !important; }
 .grid.size-s .card .serial { font-size: 11.5px; grid-column: 1; }
 .grid.size-s .card .nick, .grid.size-s .stock-tag { display: none; }
 .grid.size-s .badge { grid-column: 2; grid-row: 1 / span 3; align-self: center; margin: 0; font-size: 11px; }
+.banner.loading { background: var(--panel); border-color: var(--line); color: var(--muted); }

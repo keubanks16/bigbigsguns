@@ -10,10 +10,8 @@
   let ownerMode = 'mine';
   let viewing = null;
 
-  // ---------- settings ----------
-  const SETTINGS_KEY = 'bbgc-settings';
-  const settings = (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch { return {}; } })();
-  const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {} };
+  // Older versions could store a photo-recognition key here; clear it from the device.
+  try { localStorage.removeItem('bbgc-settings'); } catch {}
 
   // ---------- helpers ----------
   function toast(msg) {
@@ -181,7 +179,7 @@
     btn.classList.add('busy'); btn.disabled = true;
     note.className = 'note'; note.textContent = 'Starting…';
     try {
-      const r = await Recognize.run(photos, settings, msg => (note.textContent = msg));
+      const r = await Recognize.run(photos, msg => (note.textContent = msg));
       let filledAny = false;
       for (const k of ['make', 'model', 'caliber', 'type', 'serial']) {
         const el = form.elements[k];
@@ -191,8 +189,8 @@
       }
       note.className = filledAny ? 'note ok' : 'note err';
       note.textContent = filledAny
-        ? `Filled in (${r.source === 'claude' ? 'Claude' : 'on-device'}, ${r.confidence || 'low'} confidence). ${r.note || ''} Always verify the serial.`
-        : `Couldn't read it clearly. ${settings.key ? '' : 'Tip: add an API key in Settings for make/model recognition, or '}try a closer, sharper photo.`;
+        ? `Filled in from your photos. ${r.note || ''}`
+        : "Couldn't read it clearly. Try a closer, sharper photo in good light.";
     } catch (err) {
       note.className = 'note err';
       note.textContent = err.message || 'Recognition failed';
@@ -308,16 +306,8 @@
 
   // ---------- settings & backup ----------
   $('#btn-settings').onclick = () => {
-    $('#set-key').value = settings.key || '';
-    $('#set-model').value = settings.model || '';
     renderBackupStatus();
     $('#dlg-settings').showModal();
-  };
-  $('#btn-save-settings').onclick = () => {
-    settings.key = $('#set-key').value.trim();
-    settings.model = $('#set-model').value.trim();
-    saveSettings();
-    toast('Settings saved');
   };
 
   function download(name, text, type) {
@@ -344,8 +334,13 @@
     const bk = bkState();
     $('#bk-status').textContent = bk.last ? `Last backup file: ${new Date(bk.last).toLocaleString()}` : '';
     const problem = st.loggedIn && st.error && st.pending;
-    $('#backup-banner').classList.toggle('hidden', !problem);
-    $('#backup-banner-text').textContent = `${st.pending} change${st.pending === 1 ? '' : 's'} not synced yet: ${st.error}`;
+    const loading = st.loggedIn && st.progress;
+    $('#backup-banner').classList.toggle('hidden', !problem && !loading);
+    $('#backup-banner').classList.toggle('loading', !!loading && !problem);
+    $('#btn-backup-now').classList.toggle('hidden', !!loading && !problem);
+    $('#backup-banner-text').textContent = problem
+      ? `${st.pending} change${st.pending === 1 ? '' : 's'} not synced yet: ${st.error}`
+      : loading ? `${st.progress.label}… ${st.progress.done} of ${st.progress.total}` : '';
   }
 
   $('#btn-backup-now').onclick = () => Account.sync().then(() => toast(Account.status().error || 'Synced'));
@@ -443,6 +438,7 @@
     $('#sync-title').textContent = `Signed in as ${st.username}`;
     $('#sync-detail').textContent = st.busy ? 'Syncing…'
       : st.error ? `${st.error}${st.pending ? ` · ${st.pending} change${st.pending === 1 ? '' : 's'} waiting` : ''}`
+      : st.progress ? `${st.progress.label}… ${st.progress.done} of ${st.progress.total}`
       : st.pending ? `${st.pending} change${st.pending === 1 ? '' : 's'} waiting to sync`
       : st.last ? `Everything saved · synced ${ago(st.last)}` : 'Connecting…';
   }
@@ -482,7 +478,7 @@
       if (p !== $('#li-pass2').value) { msg.textContent = "Passwords don't match."; return; }
     }
     const btn = $('#li-go'), label = btn.textContent;
-    btn.disabled = true; btn.textContent = signingUp ? 'Creating account…' : 'Logging in…'; msg.textContent = '';
+    btn.disabled = true; btn.textContent = signingUp ? 'Creating account…' : 'Checking password…'; msg.textContent = '';
     try {
       await (signingUp ? Account.signup(u, p) : Account.login(u, p));
       hideLogin();
