@@ -167,3 +167,15 @@ details.more .fields { margin-top: 8px; }
 a { color: var(--brass); }
 .cloud { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
 .card .nick { font-size: 13px; color: var(--muted); font-style: italic; }
+
+/* Login */
+.login { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto; display: grid; place-items: center; padding: 24px 16px; }
+.login-box { width: min(380px, 100%); text-align: center; }
+.login-mark { width: 64px; height: 64px; margin-bottom: 8px; }
+.login h1 { font-size: 24px; }
+.login .sub { margin: 6px 0 22px; }
+.login .fields { text-align: left; }
+.login .note { text-align: left; }
+.btn.wide { width: 100%; margin-top: 8px; padding: 13px; font-size: 16px; }
+.link { background: none; border: 0; color: var(--brass); margin-top: 18px; cursor: pointer; font-weight: 500; }
+body.locked > :not(.login):not(.toast) { display: none !important; }
