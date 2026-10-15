@@ -1,10 +1,14 @@
 {
-  "name": "Big Big's Gun Collection",
-  "short_name": "Gun Collection",
+  "name": "Big Big's Guns",
+  "short_name": "Big Big's Guns",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#14171a",
-  "theme_color": "#14171a",
-  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+  "background_color": "#141414",
+  "theme_color": "#141414",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
 }

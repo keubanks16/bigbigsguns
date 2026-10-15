@@ -228,5 +228,8 @@ const Account = (() => {
     setInterval(() => document.visibilityState === 'visible' && sync(), 60000);
   }
 
-  return { init, signup, login, logout, restore, sync, track, status };
+  // Reads make/model/serial from photos on your own server (photos aren't stored).
+  const identify = images => api('/api/identify', { method: 'POST', json: { images } });
+
+  return { init, signup, login, logout, restore, sync, track, status, identify };
 })();
