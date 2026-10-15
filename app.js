@@ -289,6 +289,16 @@
 
   // ---------- filters ----------
   $('#search').oninput = render;
+
+  // Card size: small (list), medium (2 across on a phone), large (1 across). Remembered per device.
+  function setSize(sz) {
+    $('#grid').classList.remove('size-s', 'size-m', 'size-l');
+    $('#grid').classList.add(`size-${sz}`);
+    $$('#sizes button').forEach(b => b.classList.toggle('on', b.dataset.s === sz));
+    try { localStorage.setItem('bbgc-size', sz); } catch {}
+  }
+  $('#sizes').onclick = e => { const b = e.target.closest('button'); if (b) setSize(b.dataset.s); };
+  setSize((() => { try { return localStorage.getItem('bbgc-size'); } catch { return null; } })() || 'm');
   $('#filter').onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
     filter = b.dataset.f;
