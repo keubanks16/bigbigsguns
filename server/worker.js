@@ -81,7 +81,7 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(req) });
-    if (url.pathname === '/' || url.pathname === '/api/health') return json(req, { ok: true, app: 'bigbigs-gun-collection' });
+    if (url.pathname === '/' || url.pathname === '/api/health') return json(req, { ok: true, app: 'bigbigs-gun-collection', version: '2026-10-15.2' });
 
     try {
       // ---------- accounts ----------
