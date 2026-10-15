@@ -1,4 +1,4 @@
-# Big Big's Gun Collection
+# Big Big's Guns
 
 A private, phone-friendly catalog for a firearm collection.
 
@@ -11,7 +11,7 @@ A private, phone-friendly catalog for a firearm collection.
 
 ## Auto-fill
 
-Snap the gun and its serial number and the app reads the stamped text right on your device, filling in the serial, the make and the caliber. Always check the serial against the photo before saving.
+Snap the gun and its serial number and tap **Auto-fill**. Your own server (Cloudflare Workers AI, model Kimi K2.6) reads the photos and fills in make, model, caliber, type and serial. The photos are used for that one request and never stored. If the server can't be reached, the device reads the stamped text itself. Always check the serial against the photo before saving.
 
 ## Using it
 
@@ -32,7 +32,7 @@ Create an account on the login screen, then log in with the same username and pa
 
 ## Server (`server/`)
 
-A Cloudflare Worker (`bigbigsguns`) with a D1 database (`bigbigsguns`: users, sessions, gun index) and an R2 bucket (`bigbigsguns-vault`: encrypted records). It deploys automatically from this repo through Cloudflare Workers Builds (root directory `server`).
+A Cloudflare Worker (`bigbigsguns`) with Workers AI (photo recognition), a D1 database (`bigbigsguns`: users, sessions, gun index) and an R2 bucket (`bigbigsguns-vault`: encrypted records). It deploys automatically from this repo through Cloudflare Workers Builds (root directory `server`).
 
 - `MAX_USERS` in `server/wrangler.jsonc` caps how many accounts can be created (default 5).
 - API: `https://bigbigsguns.kollinmeubanks.workers.dev`

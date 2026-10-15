@@ -8,6 +8,7 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "bigbigsguns", "database_id": "633340ff-b5e9-40e0-8067-ee7d5fd3dd53" }
   ],
+  "ai": { "binding": "AI" },
   "r2_buckets": [
     { "binding": "VAULT", "bucket_name": "bigbigsguns-vault" }
   ],

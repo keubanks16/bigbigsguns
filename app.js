@@ -353,11 +353,11 @@
     const btn = $('#btn-export'); btn.disabled = true; btn.textContent = 'Encrypting…';
     try {
       const text = await Vault.lock({ app: 'bigbigs-gun-collection', version: 1, guns }, p1);
-      const name = `gun-collection-${stamp()}.bbgc`;
+      const name = `big-bigs-guns-${stamp()}.bbgc`;
       const file = new File([text], name, { type: 'application/octet-stream' });
       // On phones, open the share sheet so it can go straight to Drive / iCloud / Files / email.
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: "Big Big's Gun Collection backup" }); }
+        try { await navigator.share({ files: [file], title: "Big Big's Guns backup" }); }
         catch (err) { if (err.name === 'AbortError') return; download(name, text, 'application/octet-stream'); }
       } else {
         download(name, text, 'application/octet-stream');
@@ -376,7 +376,7 @@
     const cols = ['make', 'model', 'nickname', 'serial', 'caliber', 'type', 'action', 'capacity', 'barrel', 'finish', 'owner', 'ownerName', 'ownerPhone', 'storedSince', 'acquired', 'price', 'value', 'source', 'location', 'accessories', 'notes'];
     const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const csv = [cols.join(','), ...guns.map(g => cols.map(c => q(c === 'owner' ? (g.owner === 'stored' ? 'Stored for owner' : 'Mine') : g[c])).join(','))].join('\n');
-    download(`gun-collection-${stamp()}.csv`, csv, 'text/csv');
+    download(`big-bigs-guns-${stamp()}.csv`, csv, 'text/csv');
   };
   $('#in-csv').onchange = async e => {
     const f = e.target.files[0]; e.target.value = '';

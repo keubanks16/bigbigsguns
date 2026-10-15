@@ -5,7 +5,7 @@
   --line: #333a41;
   --text: #ece8e1;
   --muted: #9aa0a6;
-  --brass: #c9a24a;
+  --brass: #f2bd2c;
   --brass-ink: #1a1508;
   --green: #7fa37a;
   --red: #d06a5e;
@@ -65,7 +65,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--brass); }
 .card .model { font-weight: 600; font-size: 16px; }
 .card .serial { font-family: var(--mono); font-size: 13px; color: var(--muted); }
 .badge { align-self: flex-start; margin-top: 6px; font-size: 12px; padding: 3px 8px; border-radius: 99px; background: rgba(127,163,122,.15); color: var(--green); }
-.badge.stored { background: rgba(201,162,74,.15); color: var(--brass); }
+.badge.stored { background: rgba(242,189,44,.15); color: var(--brass); }
 
 .empty { text-align: center; padding: 60px 20px; color: var(--muted); max-width: 420px; margin: 0 auto; }
 .empty-icon { font-size: 52px; color: var(--brass); }
@@ -152,7 +152,7 @@ details.more .fields { margin-top: 8px; }
 
 .banner {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  background: rgba(201,162,74,.12); border: 1px solid rgba(201,162,74,.45); color: var(--text);
+  background: rgba(242,189,44,.12); border: 1px solid rgba(242,189,44,.45); color: var(--text);
   border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; font-size: 14px;
 }
 .btn.small { padding: 7px 12px; font-size: 13px; border-color: var(--brass); color: var(--brass); white-space: nowrap; }
@@ -161,7 +161,7 @@ details.more .fields { margin-top: 8px; }
 .sync-card div { display: flex; flex-direction: column; }
 .sync-card small { color: var(--muted); font-size: 13px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); flex: none; box-shadow: 0 0 0 4px rgba(127,163,122,.18); }
-.dot.busy { background: var(--brass); box-shadow: 0 0 0 4px rgba(201,162,74,.2); animation: pulse 1s ease-in-out infinite; }
+.dot.busy { background: var(--brass); box-shadow: 0 0 0 4px rgba(242,189,44,.2); animation: pulse 1s ease-in-out infinite; }
 .dot.err { background: var(--red); box-shadow: 0 0 0 4px rgba(208,106,94,.2); }
 @keyframes pulse { 50% { opacity: .4; } }
 a { color: var(--brass); }
@@ -171,7 +171,7 @@ a { color: var(--brass); }
 /* Login */
 .login { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto; display: grid; place-items: center; padding: 24px 16px; }
 .login-box { width: min(380px, 100%); text-align: center; }
-.login-mark { width: 64px; height: 64px; margin-bottom: 8px; }
+.login-mark { width: 104px; height: 104px; margin-bottom: 10px; }
 .login h1 { font-size: 24px; }
 .login .sub { margin: 6px 0 22px; }
 .login .fields { text-align: left; }

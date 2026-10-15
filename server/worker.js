@@ -1,4 +1,4 @@
-// Big Big's Gun Collection — account server (Cloudflare Worker).
+// Big Big's Guns — account server (Cloudflare Worker).
 //
 // Zero-knowledge design: the app derives two keys from the user's password on their device.
 // One encrypts the catalog (never leaves the device); the other ("authKey") proves the
@@ -14,6 +14,9 @@
 //   GET  /api/guns/:id                                       -> encrypted text
 //   PUT  /api/guns/:id   (encrypted text)                    -> {updated}
 //   DELETE /api/guns/:id                                     -> {}
+//   POST /api/identify   {images:[dataURL, ...]}             -> {make, model, caliber, type, serial, note}
+//     Reads the photos with Cloudflare Workers AI. Photos are used for that one request
+//     and never stored.
 
 const ALLOWED_ORIGINS = ['https://keubanks16.github.io'];
 const SESSION_DAYS = 180;
@@ -73,6 +76,38 @@ async function sessionUser(req, env) {
   return row.username;
 }
 
+const IDENTIFY_MODEL = '@cf/moonshotai/kimi-k2.6';
+const IDENTIFY_PROMPT =
+  'These photos are of a firearm from a private collection being cataloged for insurance records. ' +
+  'The first photo shows the gun; the second (if any) is a close-up of its serial number. ' +
+  'Identify the manufacturer, model, caliber or gauge, and type, using the roll marks and engravings when visible, ' +
+  'and read the serial number exactly as stamped. Reply with ONLY a JSON object, no other text: ' +
+  '{"make":"","model":"","caliber":"","type":"Pistol|Revolver|Rifle|Shotgun|Other","serial":"","confidence":"high|medium|low","note":""}. ' +
+  'Use an empty string for anything you cannot determine. Put any doubt (for example an unclear character in the serial) in "note".';
+
+async function identify(env, images) {
+  const content = [{ type: 'text', text: IDENTIFY_PROMPT }, ...images.map(url => ({ type: 'image_url', image_url: { url } }))];
+  const out = await env.AI.run(IDENTIFY_MODEL, {
+    messages: [{ role: 'user', content }],
+    max_tokens: 400,
+    temperature: 0.1,
+    chat_template_kwargs: { thinking: false },
+  });
+  const text = typeof out === 'string' ? out
+    : out?.response ?? out?.choices?.[0]?.message?.content ?? out?.result?.response ?? '';
+  const m = String(typeof text === 'string' ? text : JSON.stringify(text)).match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('No answer from the photo reader');
+  const r = JSON.parse(m[0]);
+  const clean = v => String(v ?? '').trim().slice(0, 80);
+  return {
+    make: clean(r.make), model: clean(r.model), caliber: clean(r.caliber),
+    type: ['Pistol', 'Revolver', 'Rifle', 'Shotgun', 'Other'].includes(r.type) ? r.type : '',
+    serial: clean(r.serial).toUpperCase().replace(/\s+/g, ''),
+    confidence: ['high', 'medium', 'low'].includes(r.confidence) ? r.confidence : 'low',
+    note: clean(r.note).slice(0, 200),
+  };
+}
+
 async function body(req) {
   try { return await req.json(); } catch { return {}; }
 }
@@ -81,7 +116,7 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(req) });
-    if (url.pathname === '/' || url.pathname === '/api/health') return json(req, { ok: true, app: 'bigbigs-gun-collection', version: '2026-10-15.2' });
+    if (url.pathname === '/' || url.pathname === '/api/health') return json(req, { ok: true, app: 'bigbigs-gun-collection', version: '2026-10-15.3' });
 
     try {
       // ---------- accounts ----------
@@ -133,6 +168,17 @@ export default {
         const m = (req.headers.get('Authorization') || '').match(/^Bearer ([a-f0-9]{64})$/);
         if (m) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await sha256(m[1])).run();
         return json(req, {});
+      }
+
+      // ---------- photo recognition ----------
+      if (url.pathname === '/api/identify' && req.method === 'POST') {
+        const username = await sessionUser(req, env);
+        if (!username) return fail(req, 401, 'Please log in again');
+        if (!env.AI) return fail(req, 503, 'Photo recognition is not set up on the server');
+        const b = await body(req);
+        const images = (Array.isArray(b.images) ? b.images : []).filter(i => typeof i === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(i)).slice(0, 2);
+        if (!images.length || images.some(i => i.length > 3_000_000)) return fail(req, 400, 'Send one or two photos');
+        return json(req, await identify(env, images));
       }
 
       // ---------- catalog ----------

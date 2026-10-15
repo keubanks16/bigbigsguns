@@ -1,5 +1,7 @@
-// Reads make, caliber and serial number off the photos, right on the device (Tesseract.js):
-// it reads the stamped text, then picks out the serial and a known manufacturer name.
+// Fills in make, model, caliber, type and serial from the photos.
+//  1. Your own server reads the photos (Cloudflare Workers AI) — recognizes the gun itself.
+//  2. If that isn't reachable, the device reads the stamped text (Tesseract.js) and picks out
+//     the serial and a known manufacturer name.
 const Recognize = (() => {
   const MAKERS = [
     'Glock', 'Smith & Wesson', 'Sig Sauer', 'Ruger', 'Springfield Armory', 'Colt', 'Beretta',
@@ -106,7 +108,39 @@ const Recognize = (() => {
     };
   }
 
-  const run = (images, onProgress) => withOCR(images, onProgress);
+  // Smaller copies upload faster and are plenty for reading markings.
+  function shrink(dataUrl, max = 1280) {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+
+  async function run(images, onProgress) {
+    if (typeof Account !== 'undefined' && Account.status().loggedIn) {
+      try {
+        onProgress && onProgress('Identifying the gun…');
+        const pics = await Promise.all([images.gun, images.serial].filter(Boolean).map(i => shrink(i)));
+        const r = await Account.identify(pics);
+        if (r.make || r.model || r.serial) {
+          // Fall back to reading the serial on-device if the server couldn't make it out.
+          if (!r.serial && images.serial) {
+            try { r.serial = (await withOCR({ serial: images.serial }, onProgress)).serial; } catch {}
+          }
+          return { ...r, note: [r.note, 'Double-check the serial against the photo.'].filter(Boolean).join(' '), source: 'server' };
+        }
+      } catch { /* server unavailable — read on the device instead */ }
+    }
+    return withOCR(images, onProgress);
+  }
 
   return { run };
 })();
