@@ -109,10 +109,18 @@
       <details class="more">
         <summary>More details</summary>
         <div class="fields">
+          <label class="full">Nickname<input name="nickname" placeholder="e.g. Pop's Gun"></label>
+          <label>Action<input name="action" placeholder="e.g. Pump Action"></label>
+          <label>Capacity<input name="capacity" inputmode="numeric"></label>
+          <label>Barrel<input name="barrel" placeholder='e.g. 26"'></label>
+          <label>Finish<input name="finish" placeholder="e.g. Wood/blue"></label>
           <label>Date acquired<input name="acquired" type="date"></label>
           <label>Price paid<input name="price" inputmode="decimal" placeholder="$"></label>
+          <label>Est. value<input name="value" inputmode="decimal" placeholder="$"></label>
+          <label>Location<input name="location" placeholder="Where it's kept"></label>
           <label class="full">Purchased from<input name="source" placeholder="Store or person"></label>
-          <label class="full">Notes<textarea name="notes" rows="3" placeholder="Optics, accessories, condition…"></textarea></label>
+          <label class="full">Optics &amp; accessories<input name="accessories" placeholder="Scope, laser, light…"></label>
+          <label class="full">Notes<textarea name="notes" rows="4" placeholder="History, who it goes to, condition…"></textarea></label>
         </div>
       </details>
 
@@ -189,8 +197,12 @@
     </details>
 
     <h3>Spreadsheet</h3>
-    <p class="note">A CSV for insurance or printing. It is <strong>not</strong> encrypted, so don't leave it sitting in cloud storage.</p>
-    <button class="btn" id="btn-csv">Export spreadsheet (CSV)</button>
+    <p class="note">Bring in a list from another gun app or a spreadsheet (CSV), or export one for insurance or printing. Exported CSVs are <strong>not</strong> encrypted, so don't leave them sitting in cloud storage.</p>
+    <div class="row">
+      <label class="btn primary">Import spreadsheet (CSV)<input type="file" accept=".csv,text/csv,text/plain" id="in-csv" hidden></label>
+      <button class="btn" id="btn-csv">Export spreadsheet (CSV)</button>
+    </div>
+    <p id="csv-msg" class="note"></p>
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
@@ -198,6 +210,7 @@
   <script src="db.js"></script>
   <script src="vault.js"></script>
   <script src="sync.js"></script>
+  <script src="csvimport.js"></script>
   <script src="recognize.js"></script>
   <script src="app.js"></script>
 </body>

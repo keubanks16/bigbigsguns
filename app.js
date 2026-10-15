@@ -51,13 +51,13 @@
     const q = $('#search').value.trim().toLowerCase();
     const list = guns
       .filter(g => filter === 'all' || (filter === 'mine' ? g.owner !== 'stored' : g.owner === 'stored'))
-      .filter(g => !q || [g.make, g.model, g.serial, g.caliber, g.type, g.ownerName, g.notes].join(' ').toLowerCase().includes(q))
+      .filter(g => !q || [g.make, g.model, g.nickname, g.serial, g.caliber, g.type, g.action, g.finish, g.location, g.source, g.accessories, g.ownerName, g.notes].join(' ').toLowerCase().includes(q))
       .sort((a, b) => (a.make || '').localeCompare(b.make || '') || (a.model || '').localeCompare(b.model || ''));
 
     const mine = guns.filter(g => g.owner !== 'stored').length;
     const stored = guns.length - mine;
     $('#count-line').textContent = guns.length
-      ? `${guns.length} firearm${guns.length === 1 ? '' : 's'} · ${mine} mine${stored ? ` · ${stored} stored for others` : ''}`
+      ? `${guns.length} firearm${guns.length === 1 ? '' : 's'} · ${mine} mine${stored ? ` · ${stored} stored for others` : ''}${totalValue() ? ` · est. $${totalValue().toLocaleString()}` : ''}`
       : 'Collection catalog';
 
     $('#empty').classList.toggle('hidden', guns.length > 0);
@@ -67,6 +67,7 @@
         <div class="meta">
           <span class="make">${esc(g.make || 'Unknown make')}</span>
           <span class="model">${esc(g.model || '—')}${g.caliber ? ` <small style="color:var(--muted);font-weight:400">· ${esc(g.caliber)}</small>` : ''}</span>
+          ${g.nickname ? `<span class="nick">“${esc(g.nickname)}”</span>` : ''}
           <span class="serial">S/N ${esc(g.serial || '—')}</span>
           ${g.owner === 'stored'
             ? `<span class="badge stored">Belongs to ${esc(g.ownerName || 'someone else')}</span>`
@@ -74,6 +75,10 @@
         </div>
       </button>`).join('');
     if (guns.length && !list.length) $('#grid').innerHTML = `<p class="note">No matches.</p>`;
+  }
+
+  function totalValue() {
+    return guns.filter(g => g.owner !== 'stored').reduce((t, g) => t + (parseFloat(String(g.value || '').replace(/[$,]/g, '')) || 0), 0);
   }
 
   async function load() {
@@ -113,7 +118,7 @@
     setOwner(gun?.owner || 'mine');
     if (gun) {
       for (const el of form.elements) if (el.name && gun[el.name] != null) el.value = gun[el.name];
-      if (gun.acquired || gun.price || gun.source || gun.notes) form.querySelector('details').open = true;
+      if (['nickname','action','capacity','barrel','finish','acquired','price','value','location','source','accessories','notes'].some(k => gun[k])) form.querySelector('details').open = true;
     }
     $('#dlg-edit').showModal();
   }
@@ -199,11 +204,13 @@
     viewing = gun;
     $('#view-title').textContent = [gun.make, gun.model].filter(Boolean).join(' ') || 'Firearm';
     const rows = [
-      ['Serial', gun.serial, 'mono'], ['Caliber', gun.caliber], ['Type', gun.type],
+      ['Nickname', gun.nickname], ['Serial', gun.serial, 'mono'], ['Caliber', gun.caliber], ['Type', gun.type],
+      ['Action', gun.action], ['Capacity', gun.capacity], ['Barrel', gun.barrel], ['Finish', gun.finish],
       ['Owner', gun.owner === 'stored' ? gun.ownerName || 'Someone else' : 'Mine'],
       ...(gun.owner === 'stored' ? [['Owner phone', gun.ownerPhone], ['Stored since', fmtDate(gun.storedSince)]] : []),
       ['Acquired', fmtDate(gun.acquired)], ['Price paid', gun.price ? `$${String(gun.price).replace(/^\$/, '')}` : ''],
-      ['From', gun.source], ['Notes', gun.notes],
+      ['Est. value', gun.value ? `$${String(gun.value).replace(/^\$/, '')}` : ''],
+      ['From', gun.source], ['Location', gun.location], ['Optics & accessories', gun.accessories], ['Notes', gun.notes],
     ].filter(r => r[1]);
     $('#view-body').innerHTML = `
       <div class="view-photos">
@@ -310,11 +317,36 @@
     }
   };
   $('#btn-csv').onclick = () => {
-    const cols = ['make', 'model', 'serial', 'caliber', 'type', 'owner', 'ownerName', 'ownerPhone', 'storedSince', 'acquired', 'price', 'source', 'notes'];
+    const cols = ['make', 'model', 'nickname', 'serial', 'caliber', 'type', 'action', 'capacity', 'barrel', 'finish', 'owner', 'ownerName', 'ownerPhone', 'storedSince', 'acquired', 'price', 'value', 'source', 'location', 'accessories', 'notes'];
     const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const csv = [cols.join(','), ...guns.map(g => cols.map(c => q(c === 'owner' ? (g.owner === 'stored' ? 'Stored for owner' : 'Mine') : g[c])).join(','))].join('\n');
     download(`gun-collection-${stamp()}.csv`, csv, 'text/csv');
   };
+  $('#in-csv').onchange = async e => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    const msg = $('#csv-msg'); msg.className = 'note';
+    try {
+      const incoming = CsvImport.toGuns(await f.text());
+      // Same serial = same gun; guns without a serial are matched on their description.
+      const keyOf = g => g.serial ? `s:${g.serial}` : `d:${[g.make, g.model, g.caliber, g.finish, g.nickname].join('|').toLowerCase().replace(/\s+/g, ' ').trim()}`;
+      const have = new Set(guns.map(keyOf));
+      const fresh = incoming.filter(g => !have.has(keyOf(g)));
+      const skipped = incoming.length - fresh.length;
+      if (!fresh.length) { msg.textContent = `All ${incoming.length} guns in that file are already in your catalog.`; return; }
+      if (!confirm(`Add ${fresh.length} gun${fresh.length === 1 ? '' : 's'} to your catalog?${skipped ? `\n\n${skipped} already in the catalog will be skipped.` : ''}`)) return;
+      for (const g of fresh) { await DB.put(g); Sync.track('put', g.id); }
+      markChanged();
+      await load();
+      msg.className = 'note ok';
+      msg.textContent = `Added ${fresh.length} gun${fresh.length === 1 ? '' : 's'}${skipped ? ` (skipped ${skipped} already here)` : ''}.${Sync.status().enabled ? ' Backing them up now — keep the app open for a couple of minutes.' : ''}`;
+      toast(`Imported ${fresh.length} guns`);
+    } catch (err) {
+      msg.className = 'note err';
+      msg.textContent = err.message || "Couldn't read that spreadsheet";
+    }
+  };
+
   $('#in-import').onchange = async e => {
     const f = e.target.files[0]; e.target.value = '';
     if (!f) return;
