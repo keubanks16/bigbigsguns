@@ -63,7 +63,7 @@
     $('#empty').classList.toggle('hidden', guns.length > 0);
     $('#grid').innerHTML = list.map(g => `
       <button class="card" data-id="${g.id}">
-        <div class="thumb" style="${g.photoGun ? `background-image:url(${g.photoGun})` : ''}">${g.photoGun ? '' : '⌖'}</div>
+        <div class="thumb${!g.photoGun && g.stockPhoto ? ' stock' : ''}" style="${photoOf(g) ? `background-image:url('${esc(photoOf(g))}')` : ''}">${photoOf(g) ? '' : '⌖'}${!g.photoGun && g.stockPhoto ? '<span class="stock-tag">Stock photo</span>' : ''}</div>
         <div class="meta">
           <span class="make">${esc(g.make || 'Unknown make')}</span>
           <span class="model">${esc(g.model || '—')}${g.caliber ? ` <small style="color:var(--muted);font-weight:400">· ${esc(g.caliber)}</small>` : ''}</span>
@@ -81,10 +81,47 @@
     return guns.filter(g => g.owner !== 'stored').reduce((t, g) => t + (parseFloat(String(g.value || '').replace(/[$,]/g, '')) || 0), 0);
   }
 
+  const photoOf = g => g.photoGun || (g.stockPhoto && g.stockPhoto.url) || '';
+
   async function load() {
     guns = await DB.all();
     render();
     renderBackupStatus();
+    fillStockPhotos();
+  }
+
+  // ---------- stock photos for guns without one ----------
+  const RETRY = 30 * 864e5;
+  const stockBusy = new Set();
+  let stockRunning = false;
+  async function saveQuiet(gun) {
+    await DB.put(gun);
+    const i = guns.findIndex(g => g.id === gun.id);
+    if (i >= 0) guns[i] = gun;
+    Account.track('put', gun.id);
+  }
+  async function fillStockPhotos() {
+    if (stockRunning || navigator.onLine === false) return;
+    stockRunning = true;
+    try {
+      let n = 0;
+      for (;;) {
+        const g = guns.find(x => !x.photoGun && !x.stockPhoto && !x.stockOff && !stockBusy.has(x.id) &&
+          (x.make || x.model) && !(x.stockTried && Date.now() - x.stockTried < RETRY));
+        if (!g) break;
+        stockBusy.add(g.id);
+        let list = [];
+        try { list = await StockPhoto.candidates(g); } catch { break; }  // offline or blocked: try next time
+        const fresh = (await DB.get(g.id)) || g;
+        if (fresh.photoGun || fresh.stockPhoto) continue;
+        await saveQuiet({ ...fresh, stockPhoto: list[0] || null, stockTried: Date.now() });
+        if (list[0] && ++n % 6 === 0) render();
+        await new Promise(r => setTimeout(r, 250)); // be polite to Wikipedia
+      }
+    } finally {
+      stockRunning = false;
+      render();
+    }
   }
 
   // ---------- add / edit ----------
@@ -215,11 +252,33 @@
     $('#view-body').innerHTML = `
       <div class="view-photos">
         ${gun.photoGun ? `<img src="${gun.photoGun}" alt="Gun photo">` : ''}
+        ${!gun.photoGun && gun.stockPhoto ? `<img src="${esc(gun.stockPhoto.url)}" alt="Stock photo" class="${gun.photoSerial ? '' : 'wide'}">` : ''}
         ${gun.photoSerial ? `<img src="${gun.photoSerial}" alt="Serial number photo">` : ''}
       </div>
+      ${!gun.photoGun && gun.stockPhoto ? `
+      <div class="stock-bar">
+        <span>Stock photo from <a href="${esc(gun.stockPhoto.page)}" target="_blank" rel="noopener">${esc(gun.stockPhoto.source)}</a> — may not match yours exactly. Tap Edit to add your own.</span>
+        <span class="row"><button class="btn small" id="stock-next">Try another</button><button class="btn small ghost" id="stock-off">Remove</button></span>
+      </div>` : ''}
+      ${!gun.photoGun && !gun.stockPhoto ? `<div class="stock-bar"><span>No photo yet.</span><button class="btn small" id="stock-next">Find a stock photo</button></div>` : ''}
       <dl class="kv">${rows.map(([k, v, c]) => `<dt>${k}</dt><dd class="${c || ''}">${esc(v).replace(/\n/g, '<br>')}</dd>`).join('')}</dl>`;
     $$('#view-body img').forEach(img => img.onclick = () => window.open().document.write(`<img src="${img.src}" style="max-width:100%">`));
-    $('#dlg-view').showModal();
+    const next = $('#stock-next'), off = $('#stock-off');
+    if (next) next.onclick = async () => {
+      next.disabled = true; next.textContent = 'Searching…';
+      try {
+        const skip = new Set([...(gun.stockSkip || []), gun.stockPhoto && gun.stockPhoto.url].filter(Boolean));
+        const pick = (await StockPhoto.candidates(gun)).find(c => !skip.has(c.url));
+        if (!pick) { toast(gun.stockPhoto ? 'No other photos found' : 'No stock photo found for this one'); next.disabled = false; next.textContent = gun.stockPhoto ? 'Try another' : 'Find a stock photo'; return; }
+        const updated = { ...gun, stockPhoto: pick, stockSkip: [...skip].slice(-20), stockTried: Date.now(), stockOff: false };
+        await saveQuiet(updated); render(); openView(updated);
+      } catch { toast("Couldn't search right now — check your connection"); next.disabled = false; }
+    };
+    if (off) off.onclick = async () => {
+      const updated = { ...gun, stockPhoto: null, stockOff: true, stockSkip: [...(gun.stockSkip || []), gun.stockPhoto.url].slice(-20) };
+      await saveQuiet(updated); render(); openView(updated);
+    };
+    if (!$('#dlg-view').open) $('#dlg-view').showModal();
   }
 
   $('#grid').onclick = e => {
