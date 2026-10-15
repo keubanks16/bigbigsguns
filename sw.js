@@ -1,5 +1,5 @@
 // Caches the app shell so it opens without a connection.
-const CACHE = 'bbgc-v6';
+const CACHE = 'bbgc-v7';
 const SHELL = ['./', 'index.html', 'styles.css', 'db.js', 'vault.js', 'account.js', 'csvimport.js', 'stockphoto.js', 'recognize.js', 'app.js', 'icon.svg', 'manifest.json'];
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(
